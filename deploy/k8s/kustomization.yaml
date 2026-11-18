@@ -14,9 +14,9 @@ resources:
   - backup.yaml
 images:
   - name: ghcr.io/baselabu/kolumbus-delay-radar/radar-collector
-    newTag: d3290885b5a4553ecbfebe0e4ccbbc6aa1ecf0b2
+    newTag: 07627d01b9fe500d7dbc6ae6236f9bd237afedec
   - name: ghcr.io/baselabu/kolumbus-delay-radar/radar-api
-    newTag: d3290885b5a4553ecbfebe0e4ccbbc6aa1ecf0b2
+    newTag: 07627d01b9fe500d7dbc6ae6236f9bd237afedec
 # Grafana dashboard as code: the Grafana sidecar loads every ConfigMap labelled grafana_dashboard=1
 configMapGenerator:
   - name: grafana-dashboard-delay-radar
