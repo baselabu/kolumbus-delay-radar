@@ -1,0 +1,38 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: api
+spec:
+  parentRefs:
+    - name: radar-gateway
+      sectionName: https
+  hostnames:
+    - kolumbus-delay-radar.swedencentral.cloudapp.azure.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+        - path:                          # the demo UI (wwwroot/index.html); /healthz, /readyz, /metrics stay internal
+            type: Exact
+            value: /
+      backendRefs:
+        - name: api
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-to-https
+spec:
+  parentRefs:
+    - name: radar-gateway
+      sectionName: http
+  hostnames:
+    - kolumbus-delay-radar.swedencentral.cloudapp.azure.com
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301

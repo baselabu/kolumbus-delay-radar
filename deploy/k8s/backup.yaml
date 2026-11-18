@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backup
+  annotations:
+    azure.workload.identity/client-id:  5e3de879-fe68-4905-8868-2abc1c3d2cae
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup
+spec:
+  schedule: "0 3 * * *"
+  timeZone: Europe/Oslo
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: backup
+            azure.workload.identity/use: "true"
+        spec:
+          serviceAccountName: backup
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: dump
+              image: postgres:17.11
+              command: ["pg_dump", "-h", "postgres", "-U", "radar", "-d", "radar", "-Fc", "-f", "/backup/radar.dump"]
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-auth
+                      key: password
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { memory: 256Mi }
+              volumeMounts:
+                - { name: backup, mountPath: /backup }
+          containers:
+            - name: upload
+              image: mcr.microsoft.com/azure-cli:2.91.0
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  az login --service-principal -u "$AZURE_CLIENT_ID" -t "$AZURE_TENANT_ID" \
+                    --federated-token "$(cat "$AZURE_FEDERATED_TOKEN_FILE")" --allow-no-subscriptions -o none
+                  name="radar-$(date -u +%Y-%m-%dT%H%MZ).dump"
+                  az storage blob upload --auth-mode login --account-name "$STORAGE_ACCOUNT" \
+                    --container-name backups --name "$name" --file /backup/radar.dump -o none
+                  echo "Uploaded $name ($(du -h /backup/radar.dump | cut -f1))"
+              env:
+                - name: STORAGE_ACCOUNT
+                  value: stradarjtcgvokdb2qmq
+                - name: HOME
+                  value: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: { cpu: 50m, memory: 128Mi }
+                limits: { memory: 384Mi }
+              volumeMounts:
+                - { name: backup, mountPath: /backup, readOnly: true }
+                - { name: tmp, mountPath: /tmp }
+          volumes:
+            - name: backup
+              emptyDir:
+                sizeLimit: 1Gi
+            - name: tmp
+              emptyDir: {}

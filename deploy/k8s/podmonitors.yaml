@@ -1,0 +1,26 @@
+# Tells Prometheus (kube-prometheus-stack) which pods to scrape, on which named port, how often
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: api
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: collector
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: collector
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s

@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: delay-radar
+resources:
+  - namespace.yaml
+  - storageclass.yaml
+  - postgres.yaml
+  - collector.yaml
+  - api.yaml
+  - gateway.yaml
+  - httproute.yaml
+  - networkpolicy.yaml
+  - podmonitors.yaml
+  - backup.yaml
+images:
+  - name: ghcr.io/baselabu/kolumbus-delay-radar/radar-collector
+    newTag: d3290885b5a4553ecbfebe0e4ccbbc6aa1ecf0b2
+  - name: ghcr.io/baselabu/kolumbus-delay-radar/radar-api
+    newTag: d3290885b5a4553ecbfebe0e4ccbbc6aa1ecf0b2
+# Grafana dashboard as code: the Grafana sidecar loads every ConfigMap labelled grafana_dashboard=1
+configMapGenerator:
+  - name: grafana-dashboard-delay-radar
+    files:
+      - dashboards/delay-radar.json
+    options:
+      labels:
+        grafana_dashboard: "1"
+      disableNameSuffixHash: true

@@ -1,0 +1,28 @@
+providers:
+  kubernetesGateway:
+    enabled: true
+  kubernetesIngress:
+    enabled: false
+  kubernetesCRD:
+    enabled: false
+
+gatewayClass:
+  enabled: true
+gateway:
+  enabled: false
+
+deployment:
+  replicas: 1
+
+service:
+  annotations:
+    service.beta.kubernetes.io/azure-dns-label-name: kolumbus-delay-radar
+  spec:
+    externalTrafficPolicy: Local
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi

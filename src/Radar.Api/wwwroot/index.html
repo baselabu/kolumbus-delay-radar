@@ -1,0 +1,231 @@
+<!doctype html>
+<!-- Demo UI for the Delay Radar API. Generated with an AI assistant (Claude); not part of the
+     project's learning goals. Plain HTML + JavaScript, no build step; it only calls /api/*. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kolumbus Delay Radar</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1b1f24; --muted: #5d6673; --line: #e3e6ea;
+    --accent: #0a6cff; --ok: #1a8f4c; --warn: #c77700; --bad: #d12d2d; --badge: #0d3b66;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111418; --card: #1b2027; --text: #e8ebef; --muted: #9aa4b1; --line: #2c333d;
+            --accent: #4c9bff; --ok: #3cc47a; --warn: #f0a33a; --bad: #ff6464; --badge: #2b5a8f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 20px 16px 8px; max-width: 960px; margin: 0 auto; }
+  h1 { margin: 0; font-size: 22px; }
+  .sub { color: var(--muted); margin-top: 2px; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); margin-right: 6px; vertical-align: 1px; }
+  .dot.live { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+  nav { display: flex; gap: 6px; max-width: 960px; margin: 10px auto 0; padding: 0 16px; flex-wrap: wrap; }
+  nav button { border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 8px 14px; border-radius: 999px; cursor: pointer; font: inherit; }
+  nav button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  main { max-width: 960px; margin: 12px auto 40px; padding: 0 16px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  section[hidden] { display: none; }
+  .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; color: var(--muted); }
+  select, input { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); }
+  input[type=text] { width: 90px; }
+  .go { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 7px 14px; font: inherit; cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .badge { display: inline-block; min-width: 38px; text-align: center; padding: 2px 7px; border-radius: 6px; background: var(--badge); color: #fff; font-weight: 600; font-size: 13px; }
+  .late { color: var(--bad); font-weight: 600; } .early { color: var(--ok); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .card { border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .card .k { color: var(--muted); font-size: 13px; } .card .v { font-size: 26px; font-weight: 700; margin-top: 2px; }
+  .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; min-width: 80px; }
+  .bar > span { display: block; height: 100%; }
+  .hours { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; align-items: end; height: 180px; margin-top: 8px; }
+  .hours div { background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; position: relative; }
+  .hours div.neg { background: var(--ok); }
+  .hours-axis { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; color: var(--muted); font-size: 11px; text-align: center; margin-top: 4px; }
+  .msg { color: var(--muted); padding: 10px 0; }
+  .err { color: var(--bad); }
+  footer { max-width: 960px; margin: 0 auto 30px; padding: 0 16px; color: var(--muted); font-size: 13px; }
+  @media (max-width: 600px) { .hide-sm { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Kolumbus Delay Radar</h1>
+  <div class="sub"><span id="status" class="dot"></span><span id="statusText">Connecting…</span></div>
+</header>
+
+<nav role="tablist">
+  <button role="tab" data-tab="late" aria-selected="true">Late right now</button>
+  <button role="tab" data-tab="line" aria-selected="false">Line punctuality</button>
+  <button role="tab" data-tab="ranking" aria-selected="false">Line ranking</button>
+  <button role="tab" data-tab="stop" aria-selected="false">Stop by hour</button>
+</nav>
+
+<main>
+  <section id="tab-late">
+    <div class="controls">
+      Buses more than
+      <select id="minDelay"><option>3</option><option>5</option><option selected>10</option><option>15</option></select>
+      minutes late (last 15 min) · refreshes every 30 s
+    </div>
+    <div id="lateOut" class="msg">Loading…</div>
+  </section>
+
+  <section id="tab-line" hidden>
+    <form class="controls" id="lineForm">
+      Line <input type="text" id="lineNo" value="6" aria-label="Line number">
+      over the last <select id="lineDays"><option>1</option><option selected>7</option><option>14</option><option>31</option></select> days
+      <button class="go">Show</button>
+    </form>
+    <div id="lineOut" class="msg">Enter a line number, for example 6, 3 or X60.</div>
+  </section>
+
+  <section id="tab-ranking" hidden>
+    <div class="controls">
+      Last <select id="rankDays"><option>1</option><option selected>7</option><option>14</option><option>31</option></select> days,
+      <select id="rankPeriod"><option value="all">all hours</option><option value="rush">weekday rush hours (07–09, 15–18)</option></select>
+      · lines with at least 50 stops, least punctual first
+    </div>
+    <div id="rankOut" class="msg">Loading…</div>
+  </section>
+
+  <section id="tab-stop" hidden>
+    <div class="controls">
+      Stop <input type="search" id="stopSearch" list="stopList" placeholder="Type a stop name, e.g. Vaktapoteket"
+        aria-label="Search for a stop" style="width:min(340px,100%)" autocomplete="off">
+      <datalist id="stopList"></datalist>
+      last <select id="stopDays"><option>1</option><option selected>7</option><option>14</option><option>31</option></select> days
+    </div>
+    <div id="stopOut" class="msg">Loading…</div>
+  </section>
+</main>
+
+<footer>
+  Real-time data from Entur for Kolumbus buses, collected every 30 seconds. Times are Norwegian time.
+  "On time" = from 1 minute early to 3 minutes late. Median and p90 are delays in minutes:seconds.
+  This page was generated with an AI assistant (Claude) as a demo client for the API.
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const clock = iso => new Date(iso).toLocaleTimeString("nb-NO", { timeZone: "Europe/Oslo", hour: "2-digit", minute: "2-digit" });
+function delay(s) {                       // 402 -> "+6:42", -65 -> "-1:05"
+  const sign = s < 0 ? "-" : "+", a = Math.abs(Math.round(s));
+  return `${sign}${Math.floor(a / 60)}:${String(a % 60).padStart(2, "0")}`;
+}
+const delayClass = s => s > 180 ? "late" : s < -60 ? "early" : "";
+function pctColor(p) { return p >= 80 ? "var(--ok)" : p >= 55 ? "var(--warn)" : "var(--bad)"; }
+
+async function api(path) {
+  const res = await fetch(path, { headers: { Accept: "application/json" } });
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(body?.detail || body?.title || `HTTP ${res.status}`);
+  return body;
+}
+function setStatus(ok, text) { $("status").className = "dot" + (ok ? " live" : ""); $("statusText").textContent = text; }
+function fail(out, e) { out.innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+
+// Tabs
+document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll("nav button").forEach(x => x.setAttribute("aria-selected", x === b));
+  document.querySelectorAll("main section").forEach(s => s.hidden = s.id !== "tab-" + b.dataset.tab);
+  ({ ranking: loadRanking, stop: loadStop })[b.dataset.tab]?.();
+}));
+
+// Late right now
+async function loadLate() {
+  const out = $("lateOut");
+  try {
+    const buses = await api(`/api/live/late?minDelay=${$("minDelay").value}`);
+    setStatus(true, `Live · updated ${new Date().toLocaleTimeString("nb-NO")}`);
+    if (!buses.length) { out.innerHTML = `<div class="msg">No buses are that late right now. 🎉</div>`; return; }
+    out.innerHTML = `<table><thead><tr><th>Line</th><th>Last stop passed</th>
+      <th class="num hide-sm">Planned</th><th class="num">Actual</th><th class="num">Delay</th></tr></thead><tbody>${
+      buses.map(b => `<tr><td><span class="badge">${esc(b.line)}</span></td><td>${esc(b.stopName || "–")}</td>
+        <td class="num hide-sm">${clock(b.aimed)}</td><td class="num">${clock(b.actual)}</td>
+        <td class="num late">${delay(b.delaySeconds)}</td></tr>`).join("")}</tbody></table>`;
+  } catch (e) { setStatus(false, "API not reachable"); fail(out, e); }
+}
+$("minDelay").addEventListener("change", loadLate);
+
+// Line punctuality
+$("lineForm").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const out = $("lineOut"), line = $("lineNo").value.trim();
+  if (!line) return;
+  out.innerHTML = "Loading…";
+  try {
+    const p = await api(`/api/lines/${encodeURIComponent(line)}/punctuality?days=${$("lineDays").value}`);
+    out.innerHTML = `<div class="cards">
+      <div class="card"><div class="k">On time</div><div class="v" style="color:${pctColor(p.onTimePct)}">${p.onTimePct} %</div></div>
+      <div class="card"><div class="k">Median delay</div><div class="v">${delay(p.medianS)}</div></div>
+      <div class="card"><div class="k">90 % of stops within</div><div class="v">${delay(p.p90S)}</div></div>
+      <div class="card"><div class="k">Stops measured</div><div class="v">${p.stops.toLocaleString("nb-NO")}</div></div></div>`;
+  } catch (e) { fail(out, e); }
+});
+
+// Ranking
+async function loadRanking() {
+  const out = $("rankOut");
+  out.innerHTML = "Loading…";
+  try {
+    const rows = await api(`/api/lines/ranking?days=${$("rankDays").value}&period=${$("rankPeriod").value}`);
+    if (!rows.length) { out.innerHTML = `<div class="msg">Not enough data for this period yet.</div>`; return; }
+    out.innerHTML = `<table><thead><tr><th class="num">#</th><th>Line</th><th>On time</th>
+      <th class="num">Median</th><th class="num hide-sm">p90</th><th class="num hide-sm">Stops</th></tr></thead><tbody>${
+      rows.map((r, i) => `<tr><td class="num">${i + 1}</td><td><span class="badge">${esc(r.line)}</span></td>
+        <td><div style="display:flex;gap:8px;align-items:center"><div class="bar" style="flex:1"><span style="width:${r.onTimePct}%;background:${pctColor(r.onTimePct)}"></span></div>
+          <span style="min-width:48px;text-align:right">${r.onTimePct} %</span></div></td>
+        <td class="num ${delayClass(r.medianS)}">${delay(r.medianS)}</td><td class="num hide-sm">${delay(r.p90S)}</td>
+        <td class="num hide-sm">${r.stops.toLocaleString("nb-NO")}</td></tr>`).join("")}</tbody></table>`;
+  } catch (e) { fail(out, e); }
+}
+$("rankDays").addEventListener("change", loadRanking);
+$("rankPeriod").addEventListener("change", loadRanking);
+
+// Stop by hour: the full stop list is fetched once and searched in the browser (datalist)
+let stops = null;                          // label -> stopRef
+const stopLabel = st => `${st.name} (platform ${st.stopRef.replace("NSR:Quay:", "")})`;
+async function loadStopList() {
+  if (stops) return;
+  const list = await api("/api/stops");
+  stops = new Map(list.map(st => [stopLabel(st), st.stopRef]));
+  $("stopList").innerHTML = list.map(st => `<option value="${esc(stopLabel(st))}">`).join("");
+  if (!$("stopSearch").value) $("stopSearch").value = [...stops.keys()].find(k => k.startsWith("Vaktapoteket")) ?? "";
+}
+async function loadStop() {
+  const out = $("stopOut");
+  try {
+    await loadStopList();
+    const ref = stops.get($("stopSearch").value);
+    if (!ref) { out.innerHTML = `<div class="msg">Pick a stop from the suggestions (${stops.size.toLocaleString("nb-NO")} stops).</div>`; return; }
+    out.innerHTML = "Loading…";
+    const hours = await api(`/api/stops/${encodeURIComponent(ref)}/delays?days=${$("stopDays").value}`);
+    const byHour = Object.fromEntries(hours.map(h => [h.hour, h]));
+    const max = Math.max(60, ...hours.map(h => Math.abs(h.medianS)));
+    const bars = Array.from({ length: 24 }, (_, h) => {
+      const x = byHour[h];
+      if (!x) return `<div title="${h}:00 – no departures" style="height:0"></div>`;
+      return `<div class="${x.medianS < 0 ? "neg" : ""}" style="height:${Math.round(Math.abs(x.medianS) / max * 100)}%"
+        title="${h}:00 – median ${delay(x.medianS)} (${x.stops} stops)"></div>`;
+    }).join("");
+    const worst = hours.reduce((a, b) => (b.medianS > (a?.medianS ?? -1e9) ? b : a), null);
+    out.innerHTML = `<div class="msg">Median delay per hour of the day${worst ? ` · worst hour: <b>${worst.hour}:00</b> (${delay(worst.medianS)})` : ""}. Hover a bar for details.</div>
+      <div class="hours">${bars}</div>
+      <div class="hours-axis">${Array.from({ length: 24 }, (_, h) => `<span>${h % 3 === 0 ? h : ""}</span>`).join("")}</div>`;
+  } catch (e) { fail(out, e); }
+}
+$("stopSearch").addEventListener("change", loadStop);
+$("stopDays").addEventListener("change", loadStop);
+
+loadLate();
+setInterval(loadLate, 30000);     // the same rhythm as the collector
+</script>
+</body>
+</html>
